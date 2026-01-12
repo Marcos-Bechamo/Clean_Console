@@ -23,43 +23,42 @@ struct Column {
 class ConsoleTablePrinter {
 public:
     ConsoleTablePrinter(std::shared_ptr<spdlog::logger> logger, int width, size_t max_rows = 5)
-        : logger_(std::move(logger)), column_width_(width), max_rows_(max_rows), initialized_(false) {}
+        : logger_(std::move(logger)), column_width_(width), max_rows_(max_rows), header_printed_(false) {}
 
+    // Print the table header + separator once
     void PrintHeader(const std::vector<Column>& columns)
     {
         columns_ = columns;
         format_ = BuildFormat(columns);
         header_args_ = BuildArgs(columns);
 
-        ReprintTable(); // initial print
-        initialized_ = true;
+        // Print header line
+        std::string header_line = fmt::vformat(format_, header_args_);
+        PrintLine(header_line, false);
+
+        // Print separator line
+        size_t total_width = 2 + columns_.size() * column_width_; // 2 for brackets in rows
+        PrintLine(std::string(total_width, '_'), false);
+
+        header_printed_ = true;
+        current_displayed_rows_ = 0; // no data rows yet
     }
 
+    // Add a new telemetry row (scrolling)
     void PrintRow(const std::vector<std::string>& row)
     {
-        if (row.empty()) return;
+        if (row.empty() || !header_printed_) return;
 
         // Insert new row at the top
         rows_.insert(rows_.begin(), row);
 
-        // Trim buffer
+        // Keep only max_rows_ rows
         if (rows_.size() > max_rows_)
             rows_.pop_back();
 
-        // Move cursor up to overwrite existing table
-        if (initialized_) {
-            MoveCursorUp(static_cast<int>(rows_.size() + 1)); // +1 for header
-        }
-
-        ReprintTable();
-    }
-
-private:
-    void ReprintTable()
-    {
-        // Print header
-        std::string header_line = fmt::vformat(format_, header_args_);
-        PrintLine(header_line);
+        // Move cursor up only for existing data rows
+        if (current_displayed_rows_ > 0)
+            MoveCursorUp(current_displayed_rows_);
 
         // Print buffered rows
         for (const auto& r : rows_)
@@ -69,13 +68,21 @@ private:
             for (const auto& cell : r)
                 store.push_back(cell);
 
-            PrintLine(fmt::vformat(format_, store));
+            std::string line = fmt::vformat(format_, store);
+            PrintLine(line, true); // bracketed data row
         }
+
+        current_displayed_rows_ = rows_.size();
     }
 
-    void PrintLine(const std::string& line)
+private:
+    void PrintLine(const std::string& line, bool is_data_row)
     {
-        std::cout << "\033[K" << line << std::endl; // clear line and print
+        std::cout << "\033[K"; // clear line
+        if (is_data_row)
+            std::cout << "[" << line << "]" << std::endl;
+        else
+            std::cout << line << std::endl;
     }
 
     void MoveCursorUp(int n)
@@ -112,13 +119,15 @@ private:
     std::shared_ptr<spdlog::logger> logger_;
     int column_width_;
     size_t max_rows_;
-    bool initialized_;
+    bool header_printed_;
+    size_t current_displayed_rows_;
 
     std::string format_;
     fmt::dynamic_format_arg_store<fmt::format_context> header_args_;
     std::vector<std::vector<std::string>> rows_;
     std::vector<Column> columns_;
 };
+
 
 
 
