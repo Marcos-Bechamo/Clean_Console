@@ -3,7 +3,7 @@ all:
 	./mk_script.sh
 
 run:
-	./build/console_table
+	./build/clean_console
 
 clean:
 	rm -rf ./build
