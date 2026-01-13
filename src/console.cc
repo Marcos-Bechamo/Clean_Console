@@ -1,61 +1,95 @@
 #include "console.h"
 
-void ConsoleTablePrinter::PrintStaticLine(const std::string& text)
+#include <iostream>
+#include <string>
+
+void ConsoleTablePrinter::PrintStatusLine(const IStatusPrint& status)
 {
-    std::cout << text << std::endl;
-    ++static_lines_;
+    // ANSI color codes
+    constexpr const char* COLOR_RESET  = "\033[0m";
+    constexpr const char* COLOR_RED    = "\033[31m";
+    constexpr const char* COLOR_YELLOW = "\033[33m";
+    constexpr const char* COLOR_GREEN  = "\033[32m";
+    constexpr const char* COLOR_BLUE   = "\033[34m";
+    const char* color = COLOR_RESET;
+    const char* level_str = "VINFO";
+    switch (status.level)
+    {
+        case VINFO: color = COLOR_BLUE;   level_str = "VINFO"; break;
+        case INFO:  color = COLOR_GREEN;  level_str = "INFO";  break;
+        case WARN:  color = COLOR_YELLOW; level_str = "WARN";  break;
+        case ERROR: color = COLOR_RED;    level_str = "ERROR"; break;
+    }
+    // Format: [<level>][<location>] <data> - where the level is also color coded
+    std::cout << "[" << color << level_str << COLOR_RESET << "]"
+              << "[" << status.header << "] "
+              << status.data
+              << std::endl;
 }
 
-void ConsoleTablePrinter::PrintHeader(const std::vector<Column>& columns)
-{
-    columns_ = columns;
-    format_ = BuildFormat(columns);
-    header_args_ = BuildArgs(columns);
-
-    // NEW: separator between static lines and header
-    size_t total_width = 2 + columns_.size() * column_width_;
-    PrintLine(std::string(total_width, '='), false);
-
-    // Print header line
-    std::string header_line = fmt::vformat(format_, header_args_);
-    PrintLine(header_line, false);
-
-    // Print separator line between header and data
-    PrintLine(std::string(total_width, '='), false);
-
-    header_printed_ = true;
-    current_displayed_rows_ = 0;
+size_t ConsoleTablePrinter::newStatus(const IStatusPrint& status){
+    // 1. Move cursor to end of the status rows
+    CursorMove(status_start_+status_rows_.size());
+    // 2. update and print status on bottom of status rows
+    status_rows_.push_back(status);
+    PrintStatusLine(status);
+    // 3. update and redraw the table
+    table_start_++;
+    printTelemTable(true);
+    return (size_t)status_rows_.size()-1;
 }
 
-// Add a new telemetry row (scrolling)
-void ConsoleTablePrinter::PrintRow(const std::vector<std::string>& row)
+size_t ConsoleTablePrinter::updateStatus(size_t index, const IStatusPrint& status){
+    // 1. Move cursor to status row commanded from index
+    CursorMove(status_start_+index);
+    // 2. update and print new status into that status row
+    PrintStatusLine(status);
+    status_rows_[index] = status;
+    return index;
+}
+
+bool ConsoleTablePrinter::addTelemetry(const ITelemetryPrint telem){
+    table_rows_.push_back(telem);
+    return table_rows_.size() < 2;
+}
+
+void ConsoleTablePrinter::printTelemTable(bool full_redraw)
 {
-    if (row.empty() || !header_printed_)
+    if (table_rows_.empty())
         return;
 
-    // Insert new row at the top
-    rows_.insert(rows_.begin(), row);
+    // Latest telemetry for header layout
+    const ITelemetryPrint& telem = table_rows_.back();
+    std::string h_fmt = BuildFormat(telem.columns);
+    auto header_args = BuildArgs(telem.columns);
+    std::string header_line = fmt::vformat(h_fmt, header_args);
+    size_t total_width = telem.columns.size() * column_width_;
 
-    // Keep only max_rows_ rows
-    if (rows_.size() > max_rows_)
-        rows_.pop_back();
-
-    // Move cursor up ONLY over existing data rows
-    if (current_displayed_rows_ > 0)
-        MoveCursorUp(static_cast<int>(current_displayed_rows_));
-
-    // Reprint data rows
-    for (const auto& r : rows_)
+    if (full_redraw)
     {
-        fmt::dynamic_format_arg_store<fmt::format_context> store;
-        store.push_back(column_width_);  // {0} = width
-
-        for (const auto& cell : r)
-            store.push_back(cell);
-
-        std::string line = fmt::vformat(format_, store);
-        PrintLine(line, true);
+        // Print header + separators
+        PrintRow(std::string(total_width, '='));
+        PrintRow(header_line);
+        PrintRow(std::string(total_width, '='));
+    }
+    else
+    {
+        // Move cursor to the start of the data area
+        MoveCursorUp(static_cast<int>(current_displayed_table_rows_));
     }
 
-    current_displayed_rows_ = rows_.size();
+    // Print newest rows (circular buffer ensures we only have max rows)
+    for (const auto& row : table_rows_)  // oldest → newest
+    {
+        fmt::dynamic_format_arg_store<fmt::format_context> store;
+        store.push_back(column_width_);  // {0} = column width
+
+        for (const auto& cell : row.data)
+            store.push_back(cell);
+
+        std::string line = fmt::vformat(h_fmt, store);
+        PrintRow(line);
+    }
+
+    current_displayed_table_rows_ = table_rows_.size();
 }
