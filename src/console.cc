@@ -20,6 +20,7 @@ void ConsoleTablePrinter::PrintStatusLine(const IStatusPrint& status)
         case WARN:  color = COLOR_YELLOW; level_str = "WARN";  break;
         case ERROR: color = COLOR_RED;    level_str = "ERROR"; break;
     }
+    std::cout << "\033[K"; // clear line
     // Format: [<level>][<location>] <data> - where the level is also color coded
     std::cout << "[" << color << level_str << COLOR_RESET << "]"
               << "[" << status.header << "] "
@@ -29,7 +30,8 @@ void ConsoleTablePrinter::PrintStatusLine(const IStatusPrint& status)
 
 size_t ConsoleTablePrinter::newStatus(const IStatusPrint& status){
     // 1. Move cursor to end of the status rows
-    CursorMove(status_start_+status_rows_.size());
+    auto move = (current_displayed_table_rows_ > 0) ? current_displayed_table_rows_+3 : 0;
+    MoveCursorUp(move);
     // 2. update and print status on bottom of status rows
     status_rows_.push_back(status);
     PrintStatusLine(status);

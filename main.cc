@@ -37,9 +37,12 @@ int main()
         {"Ias(m/s)", ColumnAlign::Left}
     };
 
-    for (double i=0; i < 20; ++i){
+    for (double i=0; i < 6; ++i){
         auto data = printer.convert_data({i,i,i});
         tm.PostTelem(printer, {header, data});
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+
+    tm.PostStatus(printer, {ConsoleLevels::INFO, "Console", "running application"});
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
