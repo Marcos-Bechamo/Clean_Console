@@ -42,7 +42,12 @@ public:
           table_rows_(max_table_rows_)
           {}
 
-    ~ConsoleTablePrinter(){stopAllPolling();}
+    ~ConsoleTablePrinter(){stopAllPolling();RestoreConsoleForShell();}
+
+    inline void SignalHandler(int){
+        stopAllPolling();RestoreConsoleForShell();
+        std::_Exit(0);
+    }
 
     //****************************************************//
     size_t newStatus(const IStatusPrint status) override;
@@ -74,6 +79,14 @@ private:
     void PrintStatusLine(const IStatusPrint& status);
     size_t updateStatus(size_t index, const IStatusPrint status);
     std::string pollingWaveform(int frame, int width);
+
+    inline void RestoreConsoleForShell(){
+        std::cout << "\033[0m";      // reset colors
+        std::cout << "\033[?25h";    // show cursor
+        std::cout << "\033[999;1H";  // move to bottom
+        std::cout << std::endl;      // ensure prompt starts cleanly
+    }
+
     inline void stopAllPolling() {
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto& [id, flag] : stop_flags_)

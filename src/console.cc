@@ -51,7 +51,7 @@ size_t ConsoleTablePrinter::updateStatus(size_t index, const IStatusPrint status
     // 2. update and print new status into that status row
     PrintStatusLine(status);
     status_rows_[index] = status;
-    MoveCursorDown(total_rows);
+    std::cout << "\033[999;1H";  // move to bottom
     return index;
 }
 

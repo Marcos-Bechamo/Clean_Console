@@ -9,17 +9,19 @@
 #include <thread>
 #include <chrono>
 #include <vector>
-
+#include <csignal>
 #include "src/console.h"
 #include "src/console_base.h"
 #include "src/thread_manager.h"
 
 int main()
 {
+
     auto logger = spdlog::stdout_color_mt("console");
     logger->set_pattern("%v");
 
     ConsoleTablePrinter printer(logger, 12, 5);
+    // std::signal(SIGINT, printer.SignalHandler);
 
     auto tm = ThreadManager();
 
@@ -27,6 +29,7 @@ int main()
     // Static lines (printed once)
     // -----------------------------
     printer.print_banner("v1.2.3", "1/13/2026 @ 10:42");
+    tm.PostStatus(printer, {ConsoleLevels::VINFO, "INIT", "Initializing application"});
     tm.PostStatus(printer, {ConsoleLevels::INFO, "Console", "Starting Application"});
     tm.PostStatus(printer, {ConsoleLevels::WARN, "Sixdof", "Starting simulation"});
     tm.PostStatus(printer, {ConsoleLevels::ERROR, "Controller", "not running simulation"});
@@ -57,7 +60,7 @@ int main()
         ex = id;
     });
 
-    for (double i=8; i < 12; ++i){
+    for (double i=8; i < 80; ++i){
         auto data = printer.convert_data({i,i,i});
         tm.PostTelem(printer, {header, data});
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
