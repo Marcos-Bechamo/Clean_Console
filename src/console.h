@@ -10,7 +10,9 @@
 #include <thread>
 #include <chrono>
 #include <vector>
-
+#include <chrono>
+#include <mutex>
+#include <atomic>
 #include "console_base.h"
 
 template<typename T>
@@ -40,11 +42,14 @@ public:
           table_rows_(max_table_rows_)
           {}
 
+    ~ConsoleTablePrinter(){stopAllPolling();}
+
     //****************************************************//
-    size_t newStatus(const IStatusPrint& status) override;
-    size_t updateStatus(size_t index, const IStatusPrint& status) override;
+    size_t newStatus(const IStatusPrint status) override;
     bool addTelemetry(const ITelemetryPrint telem) override;
     void printTelemTable(bool full_redraw) override;
+    size_t startPolling(const IStatusPrint status) override;
+    void stopPolling(size_t id, const IStatusPrint status) override;
     inline std::vector<std::string> convert_data(const std::vector<double>& data) override
         {return convert_to_strings(data);}
     //****************************************************//
@@ -67,7 +72,20 @@ public:
 
 private:
     void PrintStatusLine(const IStatusPrint& status);
+    size_t updateStatus(size_t index, const IStatusPrint status);
+    std::string pollingWaveform(int frame, int width);
+    inline void stopAllPolling() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto& [id, flag] : stop_flags_)
+            flag->store(true);
 
+        for (auto& [id, t] : threads_)
+            if (t.joinable())
+                t.join();
+
+        threads_.clear();
+        stop_flags_.clear();
+    }
     void PrintRow(const std::string& line)
     {
         std::cout << "\033[K"; // clear line
@@ -75,6 +93,7 @@ private:
     }
 
     inline void MoveCursorUp(int n){if (n > 0) std::cout << "\033[" << n << "A";}
+    inline void MoveCursorDown(int n){if (n > 0) std::cout << "\033[" << n << "B";}
 
     std::string BuildFormat(const std::vector<Column>& columns) const{
         std::string fmt_str;
@@ -106,7 +125,7 @@ private:
         if (current_displayed_table_rows_ > 0){
             total_rows = total_rows + current_displayed_table_rows_ + 3;
         }
-        if (n > total_rows){
+        if (n < total_rows){
             MoveCursorUp(total_rows - n);
         }
     }
@@ -128,4 +147,8 @@ private:
     size_t status_start_;
     /* Status row data */
     std::vector<IStatusPrint> status_rows_{};
+
+    std::unordered_map<size_t, std::thread> threads_;
+    std::unordered_map<size_t, std::shared_ptr<std::atomic<bool>>> stop_flags_;
+    std::mutex mutex_;
 };

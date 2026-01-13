@@ -45,4 +45,24 @@ int main()
 
     tm.PostStatus(printer, {ConsoleLevels::INFO, "Console", "running application"});
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    for (double i=6; i < 8; ++i){
+        auto data = printer.convert_data({i,i,i});
+        tm.PostTelem(printer, {header, data});
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    size_t ex = 0;
+    tm.PollStatus(printer, {ConsoleLevels::INFO, "Server", "connecting to client"}, [&ex](size_t id) {
+        ex = id;
+    });
+
+    for (double i=8; i < 12; ++i){
+        auto data = printer.convert_data({i,i,i});
+        tm.PostTelem(printer, {header, data});
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    tm.HaultPolledStatus(printer, ex, {ConsoleLevels::INFO, "Server", "connecting to client --completed"});
+    tm.PostStatus(printer, {ConsoleLevels::ERROR, "debugger", "client issues"});
+    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 }

@@ -165,9 +165,17 @@ public:
         });
     }
 
-    inline void UpdateStatus(std::reference_wrapper<IConsole> obj, IStatusPrint data) {
-        console_->Post([obj, data = std::move(data)] {
-            obj.get().updateStatus(data.id, data);
+    inline void PollStatus(std::reference_wrapper<IConsole> obj, IStatusPrint data,
+                        std::function<void(size_t)> callback) {
+        console_->Post([obj, data = std::move(data), callback = std::move(callback)]() mutable {
+            size_t id = obj.get().startPolling(data);
+            if (callback) callback(id);
+        });
+    }
+
+    inline void HaultPolledStatus(std::reference_wrapper<IConsole> obj, size_t id, IStatusPrint data) {
+        console_->Post([obj, id = std::move(id), data = std::move(data)] {
+            obj.get().stopPolling(id, data);
         });
     }
 

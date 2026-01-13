@@ -40,13 +40,16 @@ struct ITelemetryPrint {
 struct IConsole {
     /// @brief Appends a new status message above the Telemetry table
     /// @return unique ID of status message created
-    virtual size_t newStatus(const IStatusPrint& status)=0;
-
-    /// @brief Overwrites an existing status message (id)
-    /// @return unique ID of status message updated
-    virtual size_t updateStatus(size_t id, const IStatusPrint& status)=0;
+    virtual size_t newStatus(const IStatusPrint status)=0;
 
     virtual bool addTelemetry(const ITelemetryPrint telem)=0;
+
+    ///@brief Creates a polling animation status message 
+    virtual size_t startPolling(const IStatusPrint status)=0;
+
+    ///@brief Stops existing polling animation
+    ///@param status New message to display after polling finishes
+    virtual void stopPolling(size_t id, const IStatusPrint status)=0;
 
     /// @brief Handles new line in the Telemetry table
     virtual void printTelemTable(bool full_redraw)=0;
